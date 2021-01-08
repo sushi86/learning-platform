@@ -10,7 +10,7 @@
           "style": "scss"
         },
         "@schematics/angular:application": {
-          "strict": true
+          "strict": false
         }
       },
       "root": "",
@@ -127,5 +127,8 @@
       }
     }
   },
-  "defaultProject": "learning-plattform"
+  "defaultProject": "learning-plattform",
+  "cli": {
+    "analytics": "48e2e3f3-68c0-408c-8204-2017328af312"
+  }
 }
