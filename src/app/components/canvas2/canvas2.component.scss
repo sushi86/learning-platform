@@ -1,0 +1,19 @@
+canvas {
+  touch-action: none;
+}
+
+.wrapper {
+  position: relative;
+
+  .color-wrapper {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+
+    button {
+      height: 50px;
+      min-width: 75px;
+      margin-right: 15px;
+    }
+  }
+}

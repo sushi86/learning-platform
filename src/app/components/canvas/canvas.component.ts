@@ -11,24 +11,30 @@ import {HttpClient} from '@angular/common/http';
 export class CanvasComponent implements AfterViewInit {
 
   constructor(
-    private http: HttpClient
+    private http: HttpClient,
+    private window: Window
   ) { }
 
   @ViewChild('canvas') public canvas: ElementRef;
 
-  @Input() public width = 400;
-  @Input() public height = 400;
+  @Input() public width = 650;
+  @Input() public height = 700;
 
   private cx: CanvasRenderingContext2D;
 
   line = [];
   draws = [];
 
+  isTouchDevice = false;
+
+  frames = 0;
 
   public ngAfterViewInit(): void {
     // get the context
     const canvasEl: HTMLCanvasElement = this.canvas.nativeElement;
     this.cx = canvasEl.getContext('2d');
+
+    this.isTouchDevice = 'ontouchstart' in document.documentElement;
 
     // set the width and height
     canvasEl.width = this.width;
@@ -37,10 +43,14 @@ export class CanvasComponent implements AfterViewInit {
     // set some default properties about the line
     this.cx.lineWidth = 1;
     this.cx.lineCap = 'round';
+    this.cx.lineJoin = 'round';
+    this.cx.lineWidth = 10;
     this.cx.strokeStyle = '#000';
 
     // we'll implement this method to start capturing mouse events
     this.captureEvents(canvasEl);
+
+    webkitRequestAnimationFrame(() => this.draw());
   }
 
   private captureEvents(canvasEl: HTMLCanvasElement): void {
@@ -50,6 +60,7 @@ export class CanvasComponent implements AfterViewInit {
           // after a mouse down, we'll record all mouse moves
           return fromEvent(canvasEl, 'mousemove')
             .pipe(
+              tap(ev => ev.preventDefault()),
               // we'll stop (and unsubscribe) once the user releases the mouse
               // this will trigger a 'mouseup' event
               takeUntil(fromEvent(canvasEl, 'mouseup').pipe(
@@ -79,7 +90,44 @@ export class CanvasComponent implements AfterViewInit {
           y: res[1].clientY - rect.top
         };
 
-        this.drawOnCanvas(prevPos, currentPos);
+        this.line.push({prev: prevPos, cur: currentPos});
+
+        //this.drawOnCanvas(prevPos, currentPos);
+      });
+
+    fromEvent(canvasEl, 'touchstart')
+      .pipe(
+        switchMap((e) => {
+          return fromEvent(canvasEl, 'touchmove')
+            .pipe(
+              tap(ev => ev.preventDefault()),
+              takeUntil(fromEvent(canvasEl, 'touchend').pipe(
+                tap(ev => this.drawEnd(ev))
+              )),
+              takeUntil(fromEvent(canvasEl, 'touchcancel').pipe(
+                tap(ev => this.drawEnd(ev))
+              )),
+              pairwise()
+            );
+        })
+      )
+      .subscribe((res: [TouchEvent, TouchEvent]) => {
+        const rect = canvasEl.getBoundingClientRect();
+
+        // previous and current position with the offset
+        const prevPos = {
+          x: res[0].touches[0].clientX - rect.left,
+          y: res[0].touches[0].clientY - rect.top
+        };
+
+        const currentPos = {
+          x: res[1].touches[0].clientX - rect.left,
+          y: res[1].touches[0].clientY - rect.top
+        };
+
+        this.line.push({prev: prevPos, cur: currentPos});
+
+        //this.drawOnCanvas(prevPos, currentPos);
       });
   }
 
@@ -111,6 +159,16 @@ export class CanvasComponent implements AfterViewInit {
       // strokes the current path with the styles we set earlier
       this.cx.stroke();
     }
+  }
+
+  private draw(): void {
+    this.cx.beginPath();
+    this.line.forEach(e => {
+      this.cx.moveTo(e.prev.x, e.prev.y);
+      this.cx.lineTo(e.cur.x, e.cur.y);
+      this.cx.stroke();
+    });
+    webkitRequestAnimationFrame(() => this.draw());
   }
 
   private sendDraws(line: any[]): void {
