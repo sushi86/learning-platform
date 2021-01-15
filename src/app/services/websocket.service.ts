@@ -8,6 +8,7 @@ export class WebsocketService {
   socket: WebSocket;
 
   public drawEvents: EventEmitter<any> = new EventEmitter();
+  public commandEvents: EventEmitter<any> = new EventEmitter();
 
   constructor() {
     this.connect();
@@ -30,7 +31,13 @@ export class WebsocketService {
 
     this.socket.onmessage = event => {
       try {
-        this.drawEvents.emit(JSON.parse(event.data));
+        const eventObject = JSON.parse(event.data);
+        if (eventObject.type === 'draw') {
+          this.drawEvents.emit(eventObject.data);
+        }
+        if (eventObject.type === 'command') {
+          this.commandEvents.emit(eventObject.data);
+        }
       } catch (e) {
         console.log(e);
         console.log(event.data);
@@ -38,8 +45,8 @@ export class WebsocketService {
     };
   }
 
-  public send(msg: object): void {
-    this.socket.send(JSON.stringify(msg));
+  public send(eventType: string, msg: any): void {
+    this.socket.send(JSON.stringify({type: eventType, data: msg}));
   }
 
 

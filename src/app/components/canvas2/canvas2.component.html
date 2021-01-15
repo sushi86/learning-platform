@@ -1,10 +1,15 @@
 <div class="wrapper">
   <canvas #canvas></canvas>
   <div class="color-wrapper">
-    <button (click)="color = 'black'">Schwarz</button>
-    <button (click)="color = 'red'">Rot</button>
-    <button (click)="clear()">Clear</button>
+    <!--
+
     <button (click)="removeLast()">Remove last</button>
+    -->
+    <button (click)="markerType='eraser'" [ngClass]="{'non-active': markerType !== 'eraser'}"><fa-icon [icon]="faEraser" class="fa-lg"></fa-icon></button>
+    <button (click)="markerType = 'marker'" [ngClass]="{'non-active': markerType !== 'marker'}"><fa-icon [icon]="faPencilAlt" class="fa-lg"></fa-icon></button>
+    <button (click)="changeColor('black')" [ngClass]="{'non-active': getColor() !== 'black'}"><span class="dot"></span></button>
+    <button (click)="changeColor('red')" [ngClass]="{'non-active': getColor() !== 'red'}"><span class="dot red"></span></button>
+    <button (click)="clear(false)" class="m-l"><fa-icon [icon]="faTrashAlt" class="fa-lg"></fa-icon></button>
   </div>
 </div>
 

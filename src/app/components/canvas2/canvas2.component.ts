@@ -1,5 +1,7 @@
 import {AfterViewInit, Component, ElementRef, ViewChild} from '@angular/core';
 import {WebsocketService} from '../../services/websocket.service';
+import {DrawEvent} from '../../entities/draw-event';
+import { faEraser, faPencilAlt, faTrashAlt } from '@fortawesome/free-solid-svg-icons';
 
 @Component({
   selector: 'app-canvas2',
@@ -14,6 +16,10 @@ export class Canvas2Component implements AfterViewInit {
 
   @ViewChild('canvas') public canvas: ElementRef;
 
+  faEraser = faEraser;
+  faPencilAlt = faPencilAlt;
+  faTrashAlt = faTrashAlt;
+
   private cx: CanvasRenderingContext2D;
   private isTouchDevice: boolean;
   private drawer: any;
@@ -22,7 +28,8 @@ export class Canvas2Component implements AfterViewInit {
   private currentLine = [];
   private lines = [];
 
-  public color = '#000';
+  private color = 'black';
+  public markerType = 'marker';
 
   ngAfterViewInit(): void {
     this.canvasEl = this.canvas.nativeElement;
@@ -31,8 +38,6 @@ export class Canvas2Component implements AfterViewInit {
     // set the width and height
     this.canvasEl.width = 1500;
     this.canvasEl.height = 1000;
-
-    this.setBackground();
 
     this.cx.strokeStyle = this.color;
     this.cx.lineJoin = 'round';
@@ -52,9 +57,22 @@ export class Canvas2Component implements AfterViewInit {
         },
         touchmove(coors: { x: number; y: number; }): void {
           if (this.isDrawing) {
+            if (self.markerType === 'marker')
+            {
+              self.cx.globalCompositeOperation = 'source-over';
+              self.cx.lineTo(coors.x, coors.y);
+              self.cx.stroke();
+              self.cx.moveTo(coors.x, coors.y);
+            }
+            if (self.markerType === 'eraser')
+            {
+              self.cx.globalCompositeOperation = 'destination-out';
+              self.cx.arc(coors.x, coors.y, 10, 0, Math.PI * 2, false);
+              self.cx.moveTo(coors.x, coors.y);
+              self.cx.fill();
+            }
             self.cx.strokeStyle = self.color;
-            self.cx.lineTo(coors.x, coors.y);
-            self.cx.stroke();
+
             self.sendLine(coors, false);
             self.lastCoords = coors;
           }
@@ -78,24 +96,39 @@ export class Canvas2Component implements AfterViewInit {
 
     this.socket.drawEvents.subscribe(
       data => {
+        const coords = data.coordinates;
         this.cx.beginPath();
-        this.cx.strokeStyle = '#0000FF';
-        this.cx.moveTo(data.prev.x, data.prev.y);
-        this.cx.lineTo(data.cur.x, data.cur.y);
-        this.cx.stroke();
+        if (data.markerType === 'marker') {
+          this.cx.strokeStyle = data.color;
+          this.cx.globalCompositeOperation = 'source-over';
+          this.cx.moveTo(coords.prev.x, coords.prev.y);
+          this.cx.lineTo(coords.cur.x, coords.cur.y);
+          this.cx.stroke();
+        }
+        if (data.markerType === 'eraser') {
+          this.cx.globalCompositeOperation = 'destination-out';
+          this.cx.arc(coords.prev.x, coords.prev.y, 10, 0, Math.PI * 2, false);
+          this.cx.moveTo(coords.cur.x, coords.cur.y);
+          this.cx.fill();
+        }
+      }
+    );
+    this.socket.commandEvents.subscribe(
+      data => {
+        if (data === 'clear') {
+          this.clear(true);
+        }
       }
     );
   }
 
-  private setBackground(): void {
-    const bg = new Image();
-    bg.src = 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/Kariertes_Papier_23-09-2016_PD.svg/1772px-Kariertes_Papier_23-09-2016_PD.svg.png';
-    bg.onload = () => {
-      this.cx.save();
-      this.cx.globalAlpha = 0.1;
-      this.cx.drawImage(bg, 0, 0);
-      this.cx.restore();
-    };
+  public changeColor(color: string): void {
+    this.color = color;
+    this.markerType = 'marker';
+  }
+
+  public getColor(): string {
+    return this.color;
   }
 
   private draw(event): void {
@@ -140,7 +173,11 @@ export class Canvas2Component implements AfterViewInit {
       this.currentLine = [];
       return;
     }
-    this.socket.send(coors);
+    const de = new DrawEvent();
+    de.color = this.color;
+    de.markerType = this.markerType;
+    de.coordinates = coors;
+    this.socket.send('draw', de);
   }
 
   public removeLast(): void {
@@ -148,13 +185,15 @@ export class Canvas2Component implements AfterViewInit {
     this.repaint();
   }
 
-  public clear(): void {
+  public clear(remote: boolean): void {
     this.cx.clearRect(0, 0, this.canvasEl.width, this.canvasEl.height);
-    this.setBackground();
+    if (!remote) {
+      this.socket.send('command', 'clear');
+    }
   }
 
   private repaint(): void {
-    this.clear();
+    this.clear(false);
     this.lines.forEach(ls => {
       ls.forEach(l => {
         this.cx.beginPath();
